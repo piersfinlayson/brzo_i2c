@@ -28,6 +28,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <osapi.h>
 #include <gpio.h>
 #include <user_interface.h>
+#include "math.h"
 
 extern void ets_isr_mask(unsigned intr); // missing definition
 extern void ets_isr_unmask(unsigned intr); // missing definition
@@ -732,7 +733,8 @@ void ICACHE_RAM_ATTR brzo_i2c_start_transaction(uint8_t slave_address, uint16_t 
 
 	i2c_slave_address = slave_address;
 	if (i2c_SCL_frequency != SCL_frequency_KHz) {
-		uint16_t fr_sel = round(SCL_frequency_KHz / 100.0);
+		uint16_t fr_sel = (SCL_frequency_KHz + 50)/100;
+		//uint16_t fr_sel = round(SCL_frequency_KHz / 100.0);
 		if (system_get_cpu_freq() == 160) {
 			if (fr_sel <= 1) iteration_scl_halfcycle = 156;
 			else if (fr_sel == 2) iteration_scl_halfcycle = 79;

@@ -29,13 +29,25 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #else
 #include <c_types.h>
 
+#ifdef OTB_V0_1
+
 // SDA on GPIO12, SCL on GPIO13
-#define BRZO_I2C_SDA_MUX PERIPHS_IO_MUX_MTDI_U
-#define BRZO_I2C_SCL_MUX PERIPHS_IO_MUX_MTCK_U
-#define BRZO_I2C_SDA_GPIO 12
-#define BRZO_I2C_SCL_GPIO 13
-#define BRZO_I2C_SDA_FUNC FUNC_GPIO12
-#define BRZO_I2C_SCL_FUNC FUNC_GPIO13
+#define BRZO_I2C_SDA_MUX PERIPHS_IO_MUX_GPIO5_U
+#define BRZO_I2C_SCL_MUX PERIPHS_IO_MUX_GPIO4_U
+#define BRZO_I2C_SDA_GPIO 5
+#define BRZO_I2C_SCL_GPIO 4
+#define BRZO_I2C_SDA_FUNC FUNC_GPIO5
+#define BRZO_I2C_SCL_FUNC FUNC_GPIO4
+#else
+
+#define BRZO_I2C_SDA_MUX PERIPHS_IO_MUX_GPIO5_U
+#define BRZO_I2C_SCL_MUX PERIPHS_IO_MUX_GPIO4_U
+#define BRZO_I2C_SDA_GPIO 5
+#define BRZO_I2C_SCL_GPIO 4
+#define BRZO_I2C_SDA_FUNC FUNC_GPIO5
+#define BRZO_I2C_SCL_FUNC FUNC_GPIO4
+
+#endif
 
 #endif
 
