@@ -31,6 +31,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #ifdef OTB_V0_1
 
+// SDA on GPIO12, SCL on GPIO13
 #define BRZO_I2C_SDA_MUX PERIPHS_IO_MUX_GPIO5_U
 #define BRZO_I2C_SCL_MUX PERIPHS_IO_MUX_GPIO4_U
 #define BRZO_I2C_SDA_GPIO 5
@@ -39,25 +40,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define BRZO_I2C_SCL_FUNC FUNC_GPIO4
 #else
 
-#if 0
-
-#define BRZO_I2C_SDA_MUX PERIPHS_IO_MUX_GPIO4_U
-#define BRZO_I2C_SCL_MUX PERIPHS_IO_MUX_GPIO2_U
-#define BRZO_I2C_SDA_GPIO 4
-#define BRZO_I2C_SCL_GPIO 2
-#define BRZO_I2C_SDA_FUNC FUNC_GPIO4
-#define BRZO_I2C_SCL_FUNC FUNC_GPIO2
-
-#else
-
-#define BRZO_I2C_SDA_MUX PERIPHS_IO_MUX_GPIO4_U
-#define BRZO_I2C_SCL_MUX PERIPHS_IO_MUX_GPIO5_U
-#define BRZO_I2C_SDA_GPIO 4
-#define BRZO_I2C_SCL_GPIO 5
-#define BRZO_I2C_SDA_FUNC FUNC_GPIO4
-#define BRZO_I2C_SCL_FUNC FUNC_GPIO5
-
-#endif
+#define BRZO_I2C_SDA_MUX PERIPHS_IO_MUX_GPIO5_U
+#define BRZO_I2C_SCL_MUX PERIPHS_IO_MUX_GPIO4_U
+#define BRZO_I2C_SDA_GPIO 5
+#define BRZO_I2C_SCL_GPIO 4
+#define BRZO_I2C_SDA_FUNC FUNC_GPIO5
+#define BRZO_I2C_SCL_FUNC FUNC_GPIO4
 
 #endif
 
@@ -76,6 +64,7 @@ void brzo_i2c_setup(uint32_t clock_stretch_time_out_usec);
 void brzo_i2c_start_transaction(uint8_t slave_address, uint16_t SCL_frequency_KHz);
 void brzo_i2c_write(uint8_t *data, uint32_t no_of_bytes, bool repeated_start);
 void brzo_i2c_read(uint8_t *data, uint32_t nr_of_bytes, bool repeated_start);
+void brzo_i2c_ACK_polling(uint16_t ACK_polling_time_out_usec);
 uint8_t brzo_i2c_end_transaction();
 
 #ifdef __cplusplus
