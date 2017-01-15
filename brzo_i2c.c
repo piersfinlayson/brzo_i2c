@@ -38,6 +38,11 @@ extern void ets_isr_unmask(unsigned intr); // missing definition
 #endif
 #endif
 
+#ifdef OTB_RBOOT_BOOTLOADER
+#undef ICACHE_FLASH_ATTR
+#define ICACHE_FLASH_ATTR
+#endif
+
 #include "brzo_i2c.h"
 
 // Global variables
