@@ -46,16 +46,9 @@ extern void ets_isr_unmask(unsigned intr); // missing definition
 #include "brzo_i2c.h"
 
 // Global variables
-uint16_t sda_bitmask, scl_bitmask, iteration_scl_halfcycle;
-uint16_t iteration_remove_spike;
-uint32_t iteration_scl_clock_stretch;
-uint16_t ACK_polling_loop_usec;
-uint8_t i2c_slave_address;
-uint16_t i2c_SCL_frequency = 0;
-uint8_t i2c_error = 0;
+brzo_i2c_info i2c_info = {0};
 
-
-void ICACHE_RAM_ATTR brzo_i2c_write(uint8_t *data, uint32_t no_of_bytes, bool repeated_start)
+void ICACHE_RAM_ATTR brzo_i2c_write_info(uint8_t *data, uint32_t no_of_bytes, bool repeated_start, brzo_i2c_info *info)
 {
 	// Pointer to Data Buffer, Number of Bytes to Send from Data Buffer
 	// Returns 0 or Error encoded as follows
@@ -67,10 +60,9 @@ void ICACHE_RAM_ATTR brzo_i2c_write(uint8_t *data, uint32_t no_of_bytes, bool re
 	// Bit 4 (16): --
 	// Bit 5 (32): --
 
-
 	// Do not perform an i2c write if a previous i2c command has already failed
-	if (i2c_error > 0) return;
-	uint8_t byte_to_send = i2c_slave_address << 1;
+	if (info->i2c_error > 0) return;
+	uint8_t byte_to_send = info->i2c_slave_address << 1;
 	// Assembler Variables
 	uint32_t a_set, a_repeated, a_in_value, a_temp1, a_bit_index;
 	if (repeated_start == true) a_repeated = 1;
@@ -351,14 +343,23 @@ void ICACHE_RAM_ATTR brzo_i2c_write(uint8_t *data, uint32_t no_of_bytes, bool re
 		// Enable all interrupts again, i.e. interrupts with interrupt level >= 1
 		"RSIL   %[r_temp1], 0;"
 
-		: [r_set] "+r" (a_set), [r_repeated] "+r" (a_repeated), [r_temp1] "+r" (a_temp1), [r_in_value] "+r" (a_in_value), [r_error] "+r" (i2c_error), [r_bit_index] "+r" (a_bit_index), [r_adr_array_element] "+r" (&data[0]), [r_byte_to_send] "+r" (byte_to_send), [r_no_of_bytes] "+r" (no_of_bytes)
-		: [r_sda_bitmask] "r" (sda_bitmask), [r_scl_bitmask] "r" (scl_bitmask), [r_iteration_scl_halfcycle] "r" (iteration_scl_halfcycle), [r_iteration_minimize_spike] "r" (iteration_remove_spike), [r_iteration_scl_clock_stretch] "r" (iteration_scl_clock_stretch)
+		: [r_set] "+r" (a_set), [r_repeated] "+r" (a_repeated), [r_temp1] "+r" (a_temp1), [r_in_value] "+r" (a_in_value), [r_error] "+r" (info->i2c_error), [r_bit_index] "+r" (a_bit_index), [r_adr_array_element] "+r" (&data[0]), [r_byte_to_send] "+r" (byte_to_send), [r_no_of_bytes] "+r" (no_of_bytes)
+		: [r_sda_bitmask] "r" (info->sda_bitmask), [r_scl_bitmask] "r" (info->scl_bitmask), [r_iteration_scl_halfcycle] "r" (info->iteration_scl_halfcycle), [r_iteration_minimize_spike] "r" (info->iteration_remove_spike), [r_iteration_scl_clock_stretch] "r" (info->iteration_scl_clock_stretch)
 		: "memory"
 	);
+
 	return;
 }
 
-void ICACHE_RAM_ATTR brzo_i2c_read(uint8_t *data, uint32_t nr_of_bytes, bool repeated_start)
+
+void ICACHE_FLASH_ATTR brzo_i2c_write(uint8_t *data, uint32_t no_of_bytes, bool repeated_start)
+{
+	brzo_i2c_write_info(data, no_of_bytes, repeated_start, &i2c_info);
+
+	return;
+}
+
+void ICACHE_RAM_ATTR brzo_i2c_read_info(uint8_t *data, uint32_t nr_of_bytes, bool repeated_start, brzo_i2c_info *info)
 {
 	// Pointer to Data Buffer, Number of Bytes to Read from Data Buffer
 	// Set i2c_error as follows
@@ -372,18 +373,18 @@ void ICACHE_RAM_ATTR brzo_i2c_read(uint8_t *data, uint32_t nr_of_bytes, bool rep
 
 	// Set i2c_error and return if "empty" i2c read
 	if (nr_of_bytes == 0) {
-		i2c_error = 16;
+		info->i2c_error = 16;
 		return;
 	}
 	// Do not perform an i2c read if a previous i2c command has already failed
-	if (i2c_error > 0) return;
+	if (info->i2c_error > 0) return;
 	// Assembler Variables
 	uint32_t a_set, a_repeated, a_in_value, a_temp1, a_temp2, a_bit_index;
 	a_temp2 = 0;
 	if (repeated_start == true) a_repeated = 1;
 	else a_repeated = 0;
 	// a_temp2 holds 7 Bit slave address, with the LSB = 1 for i2c read
-	a_temp2 = (i2c_slave_address << 1) | 1;
+	a_temp2 = (info->i2c_slave_address << 1) | 1;
 
 	asm volatile (
 		// Disable all interrupts, i.e. interrupts up to the highest interrupt level of 15
@@ -728,14 +729,22 @@ void ICACHE_RAM_ATTR brzo_i2c_read(uint8_t *data, uint32_t nr_of_bytes, bool rep
 		// Enable all interrupts again, i.e. interrupts with interrupt level >= 1
 		"RSIL   %[r_temp1], 0;"
 
-		: [r_set] "+r" (a_set), [r_repeated] "+r" (a_repeated), [r_temp1] "+r" (a_temp1), [r_in_value] "+r" (a_in_value), [r_error] "+r" (i2c_error), [r_bit_index] "+r" (a_bit_index), [r_adr_array_element] "+r" (&data[0]), [r_temp2] "+r" (a_temp2), [r_nr_of_bytes] "+r" (nr_of_bytes)
-		: [r_sda_bitmask] "r" (sda_bitmask), [r_scl_bitmask] "r" (scl_bitmask), [r_iteration_scl_halfcycle] "r" (iteration_scl_halfcycle), [r_iteration_minimize_spike] "r" (iteration_remove_spike), [r_iteration_scl_clock_stretch] "r" (iteration_scl_clock_stretch)
+		: [r_set] "+r" (a_set), [r_repeated] "+r" (a_repeated), [r_temp1] "+r" (a_temp1), [r_in_value] "+r" (a_in_value), [r_error] "+r" (info->i2c_error), [r_bit_index] "+r" (a_bit_index), [r_adr_array_element] "+r" (&data[0]), [r_temp2] "+r" (a_temp2), [r_nr_of_bytes] "+r" (nr_of_bytes)
+		: [r_sda_bitmask] "r" (info->sda_bitmask), [r_scl_bitmask] "r" (info->scl_bitmask), [r_iteration_scl_halfcycle] "r" (info->iteration_scl_halfcycle), [r_iteration_minimize_spike] "r" (info->iteration_remove_spike), [r_iteration_scl_clock_stretch] "r" (info->iteration_scl_clock_stretch)
 		: "memory"
 	);
 	return;
 }
 
-void ICACHE_RAM_ATTR brzo_i2c_ACK_polling(uint16_t ACK_polling_time_out_usec) {
+void ICACHE_RAM_ATTR brzo_i2c_read(uint8_t *data, uint32_t nr_of_bytes, bool repeated_start)
+{
+	brzo_i2c_read_info(data, nr_of_bytes, repeated_start, &i2c_info);
+
+	return;
+}
+
+void ICACHE_RAM_ATTR brzo_i2c_ACK_polling_info(uint16_t ACK_polling_time_out_usec, brzo_i2c_info *info)
+{
 	// Timeout for ACK polling in usec
 	// Returns 0 or Error encoded as follows
 	// Bit 0 (1) : Bus not free
@@ -748,13 +757,13 @@ void ICACHE_RAM_ATTR brzo_i2c_ACK_polling(uint16_t ACK_polling_time_out_usec) {
 	// Assembler Variables
 	uint32_t a_set, a_in_value, a_temp1, a_bit_index;
 	uint16_t iteration_ACK_polling_timeout;
-	uint8_t byte_to_send = i2c_slave_address << 1;
+	uint8_t byte_to_send = info->i2c_slave_address << 1;
 
 	if (ACK_polling_time_out_usec == 0) {
 		iteration_ACK_polling_timeout = 1;
 	}
 	else {
-		iteration_ACK_polling_timeout = ACK_polling_time_out_usec / ACK_polling_loop_usec;
+		iteration_ACK_polling_timeout = ACK_polling_time_out_usec / info->ACK_polling_loop_usec;
 	}
 
 	asm volatile (
@@ -959,48 +968,60 @@ void ICACHE_RAM_ATTR brzo_i2c_ACK_polling(uint16_t ACK_polling_time_out_usec) {
 		// Enable all interrupts again, i.e. interrupts with interrupt level >= 1
 		"RSIL   %[r_temp1], 0;"
 
-		: [r_set] "+r" (a_set), [r_temp1] "+r" (a_temp1), [r_in_value] "+r" (a_in_value), [r_error] "+r" (i2c_error), [r_bit_index] "+r" (a_bit_index), [r_byte_to_send] "+r" (byte_to_send), [r_iteration_ACK_polling_timeout] "+r" (iteration_ACK_polling_timeout)
-		: [r_sda_bitmask] "r" (sda_bitmask), [r_scl_bitmask] "r" (scl_bitmask), [r_iteration_scl_halfcycle] "r" (iteration_scl_halfcycle), [r_iteration_minimize_spike] "r" (iteration_remove_spike)
+		: [r_set] "+r" (a_set), [r_temp1] "+r" (a_temp1), [r_in_value] "+r" (a_in_value), [r_error] "+r" (info->i2c_error), [r_bit_index] "+r" (a_bit_index), [r_byte_to_send] "+r" (byte_to_send), [r_iteration_ACK_polling_timeout] "+r" (iteration_ACK_polling_timeout)
+		: [r_sda_bitmask] "r" (info->sda_bitmask), [r_scl_bitmask] "r" (info->scl_bitmask), [r_iteration_scl_halfcycle] "r" (info->iteration_scl_halfcycle), [r_iteration_minimize_spike] "r" (info->iteration_remove_spike)
 		: "memory"
 		);
 	return;
 }
 
-void ICACHE_RAM_ATTR brzo_i2c_start_transaction(uint8_t slave_address, uint16_t SCL_frequency_KHz)
+void ICACHE_RAM_ATTR brzo_i2c_ACK_polling(uint16_t ACK_polling_time_out_usec)
+{
+	brzo_i2c_ACK_polling_info(ACK_polling_time_out_usec, &i2c_info);
+
+	return;
+}
+
+void ICACHE_RAM_ATTR brzo_i2c_start_transaction_info(uint8_t slave_address, uint16_t SCL_frequency_KHz, brzo_i2c_info *info)
 {
 	// 7 Bit Slave Address; SCL Frequency in Steps of 100 KHz, range: 100 -- 1000 KHz
 
-	i2c_slave_address = slave_address;
-	if (i2c_SCL_frequency != SCL_frequency_KHz) {
+	info->i2c_slave_address = slave_address;
+	if (info->i2c_SCL_frequency != SCL_frequency_KHz) {
 		uint16_t fr_sel = (SCL_frequency_KHz + 50) / 100;
-		ACK_polling_loop_usec = 95 / fr_sel;
+		info->ACK_polling_loop_usec = 95 / fr_sel;
 		if (system_get_cpu_freq() == 160) {
-			if (fr_sel <= 1) iteration_scl_halfcycle = 156;
-			else if (fr_sel == 2) iteration_scl_halfcycle = 79;
-			else if (fr_sel == 3) iteration_scl_halfcycle = 51;
-			else if (fr_sel == 4) iteration_scl_halfcycle = 38;
-			else if (fr_sel == 5) iteration_scl_halfcycle = 30;
-			else if (fr_sel == 6) iteration_scl_halfcycle = 24;
-			else if (fr_sel == 7) iteration_scl_halfcycle = 20;
-			else if (fr_sel == 8) iteration_scl_halfcycle = 18;
-			else if (fr_sel == 9) iteration_scl_halfcycle = 15;
-			else iteration_scl_halfcycle = 14;
+			if (fr_sel <= 1) info->iteration_scl_halfcycle = 156;
+			else if (fr_sel == 2) info->iteration_scl_halfcycle = 79;
+			else if (fr_sel == 3) info->iteration_scl_halfcycle = 51;
+			else if (fr_sel == 4) info->iteration_scl_halfcycle = 38;
+			else if (fr_sel == 5) info->iteration_scl_halfcycle = 30;
+			else if (fr_sel == 6) info->iteration_scl_halfcycle = 24;
+			else if (fr_sel == 7) info->iteration_scl_halfcycle = 20;
+			else if (fr_sel == 8) info->iteration_scl_halfcycle = 18;
+			else if (fr_sel == 9) info->iteration_scl_halfcycle = 15;
+			else info->iteration_scl_halfcycle = 14;
 		}
 		else {
 			// 80 MHz
-			if (fr_sel <= 1) iteration_scl_halfcycle = 80;
-			else if (fr_sel == 2) iteration_scl_halfcycle = 37;
-			else if (fr_sel == 3) iteration_scl_halfcycle = 26;
-			else if (fr_sel == 4) iteration_scl_halfcycle = 19;
-			else if (fr_sel == 5) iteration_scl_halfcycle = 14;
-			else if (fr_sel == 6) iteration_scl_halfcycle = 11;
-			else if (fr_sel == 7) iteration_scl_halfcycle = 9;
-			else iteration_scl_halfcycle = 8;
+			if (fr_sel <= 1) info->iteration_scl_halfcycle = 80;
+			else if (fr_sel == 2) info->iteration_scl_halfcycle = 37;
+			else if (fr_sel == 3) info->iteration_scl_halfcycle = 26;
+			else if (fr_sel == 4) info->iteration_scl_halfcycle = 19;
+			else if (fr_sel == 5) info->iteration_scl_halfcycle = 14;
+			else if (fr_sel == 6) info->iteration_scl_halfcycle = 11;
+			else if (fr_sel == 7) info->iteration_scl_halfcycle = 9;
+			else info->iteration_scl_halfcycle = 8;
 		}
 	}
 }
 
-uint8_t ICACHE_RAM_ATTR brzo_i2c_end_transaction()
+void ICACHE_RAM_ATTR brzo_i2c_start_transaction(uint8_t slave_address, uint16_t SCL_frequency_KHz)
+{
+	brzo_i2c_start_transaction_info(slave_address, SCL_frequency_KHz, &i2c_info);
+}
+
+uint8_t ICACHE_RAM_ATTR brzo_i2c_end_transaction_info(brzo_i2c_info *info)
 {
 	// returns 0 if transaction completed successfully or error code encoded as follows
 	// Bit 0 (1) : Bus not free
@@ -1011,41 +1032,44 @@ uint8_t ICACHE_RAM_ATTR brzo_i2c_end_transaction()
 	// Bit 4 (16): Function called with 0 bytes to be read by the master. 
 	//            Command not sent to the slave, since this could yield to a bus stall (SDA remains 0)
 
-	uint8_t dummy = i2c_error;
+	uint8_t dummy = info->i2c_error;
 	// clear i2c_error for next transaction
-	i2c_error = 0;
+	info->i2c_error = 0;
 	return dummy;
 }
 
-#ifdef ARDUINO
-void ICACHE_FLASH_ATTR brzo_i2c_setup(uint8_t sda, uint8_t scl, uint32_t clock_stretch_time_out_usec)
-#else
-void ICACHE_FLASH_ATTR brzo_i2c_setup(uint32_t clock_stretch_time_out_usec)
-#endif
+uint8_t ICACHE_RAM_ATTR brzo_i2c_end_transaction()
 {
-	// SDA pin, SCL pin
-	// maximum time (usec) a slave is allowed to stretch the clock, min. 100 usec
+	uint8_t dummy;
+	
+	dummy = brzo_i2c_end_transaction_info(&i2c_info);
+
+	return dummy;
+}
+
+void ICACHE_FLASH_ATTR brzo_i2c_setup_info(brzo_i2c_info *info)
+{
 
 	// Assembler Variables
 	uint32_t a_set, a_temp1;
 
 	if (system_get_cpu_freq() == 160) {
-		iteration_remove_spike = 15;
-		if (clock_stretch_time_out_usec < 100) iteration_scl_clock_stretch = 730;
-		else iteration_scl_clock_stretch = 730 * clock_stretch_time_out_usec / 100;
+		info->iteration_remove_spike = 15;
+		if (info->clock_stretch_time_out_usec < 100) info->iteration_scl_clock_stretch = 730;
+		else info->iteration_scl_clock_stretch = 730 * info->clock_stretch_time_out_usec / 100;
 	}
 	else {
 		// 80 MHz
-		iteration_remove_spike = 7;
-		if (clock_stretch_time_out_usec < 100) iteration_scl_clock_stretch = 470;
-		else iteration_scl_clock_stretch = 470 * clock_stretch_time_out_usec / 100;
+		info->iteration_remove_spike = 7;
+		if (info->clock_stretch_time_out_usec < 100) info->iteration_scl_clock_stretch = 470;
+		else info->iteration_scl_clock_stretch = 470 * info->clock_stretch_time_out_usec / 100;
 	}
 
 #ifdef ARDUINO
-	pinMode(sda, OUTPUT_OPEN_DRAIN);
-	pinMode(scl, OUTPUT_OPEN_DRAIN);
-	sda_bitmask = (uint16_t)(1 << sda);
-	scl_bitmask = (uint16_t)(1 << scl);
+	pinMode(info->sda, OUTPUT_OPEN_DRAIN);
+	pinMode(info->scl, OUTPUT_OPEN_DRAIN);
+	info->sda_bitmask = (uint16_t)(1 << info->sda);
+	info->scl_bitmask = (uint16_t)(1 << info->scl);
 #else
 	ETS_GPIO_INTR_DISABLE();
 
@@ -1059,8 +1083,8 @@ void ICACHE_FLASH_ATTR brzo_i2c_setup(uint32_t clock_stretch_time_out_usec)
 
 	ETS_GPIO_INTR_ENABLE();
 
-	sda_bitmask = (uint16_t)(1 << BRZO_I2C_SDA_GPIO);
-	scl_bitmask = (uint16_t)(1 << BRZO_I2C_SCL_GPIO);
+	info->sda_bitmask = (uint16_t)(1 << BRZO_I2C_SDA_GPIO);
+	info->scl_bitmask = (uint16_t)(1 << BRZO_I2C_SCL_GPIO);
 #endif
 
 	// After setting the pins to open drain, their initial value is LOW
@@ -1077,9 +1101,39 @@ void ICACHE_FLASH_ATTR brzo_i2c_setup(uint32_t clock_stretch_time_out_usec)
 		"BNEZ   %[r_temp1], l_s01;"
 
 		: [r_set] "+r" (a_set), [r_temp1] "+r" (a_temp1)
-		: [r_sda_bitmask] "r" (sda_bitmask), [r_scl_bitmask] "r" (scl_bitmask)
+		: [r_sda_bitmask] "r" (info->sda_bitmask), [r_scl_bitmask] "r" (info->scl_bitmask)
 		: "memory"
 	);
+
+}
+
+// If brzo_i2c_info is non NULL use this as I2C configuration and ignore the other inputs
+#ifdef ARDUINO
+void ICACHE_FLASH_ATTR brzo_i2c_setup(uint8_t sda, uint8_t scl, uint32_t clock_stretch_time_out_usec)
+#else
+void ICACHE_FLASH_ATTR brzo_i2c_setup(uint32_t clock_stretch_time_out_usec)
+#endif
+{
+	brzo_i2c_info *info = &i2c_info;
+
+	// SDA pin, SCL pin
+	// maximum time (usec) a slave is allowed to stretch the clock, min. 100 usec
+
+#ifdef ARDUINO
+	info->sda_pin = sda_pin;
+	info->scl_pin = scl_pin;
+#else
+	info->sda_pin = BRZO_I2C_SDA_GPIO;
+	info->sda_pin_mux = BRZO_I2C_SDA_MUX;
+	info->sda_pin_func = BRZO_I2C_SDA_FUNC;
+	info->scl_pin = BRZO_I2C_SCL_GPIO;
+	info->scl_pin_mux = BRZO_I2C_SCL_MUX;
+	info->scl_pin_func = BRZO_I2C_SCL_FUNC;
+#endif
+	info->clock_stretch_time_out_usec = clock_stretch_time_out_usec;
+
+	brzo_i2c_setup_info(info);
+
 }
 
 void ICACHE_FLASH_ATTR brzo_i2c_reset_bus()

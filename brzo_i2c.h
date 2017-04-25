@@ -55,6 +55,33 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 extern "C" {
 #endif
 
+typedef struct brzo_i2c_info
+{
+  // Inputs
+  uint8_t sda_pin;
+  uint8_t scl_pin;
+#ifndef ARDUINO
+  uint8_t sda_pin_func;
+  uint8_t scl_pin_func;
+  uint32_t sda_pin_mux;
+  uint32_t scl_pin_mux;
+#endif
+  uint32_t clock_stretch_time_out_usec;
+
+  // Outputs
+  uint8_t i2c_error;
+
+  // Private data
+  uint8_t i2c_slave_address;
+  uint16_t sda_bitmask;
+  uint16_t scl_bitmask;
+  uint16_t iteration_scl_halfcycle;
+  uint32_t iteration_scl_clock_stretch;
+  uint16_t iteration_remove_spike;
+  uint16_t ACK_polling_loop_usec;
+  uint16_t i2c_SCL_frequency;
+} brzo_i2c_info;
+
 #ifdef ARDUINO
 void brzo_i2c_setup(uint8_t sda, uint8_t scl, uint32_t clock_stretch_time_out_usec);
 #else
@@ -66,6 +93,13 @@ void brzo_i2c_write(uint8_t *data, uint32_t no_of_bytes, bool repeated_start);
 void brzo_i2c_read(uint8_t *data, uint32_t nr_of_bytes, bool repeated_start);
 void brzo_i2c_ACK_polling(uint16_t ACK_polling_time_out_usec);
 uint8_t brzo_i2c_end_transaction();
+
+void ICACHE_FLASH_ATTR brzo_i2c_setup_info(brzo_i2c_info *info);
+void brzo_i2c_start_transaction_info(uint8_t slave_address, uint16_t SCL_frequency_KHz, brzo_i2c_info *info);
+void brzo_i2c_write_info(uint8_t *data, uint32_t no_of_bytes, bool repeated_start, brzo_i2c_info *info);
+void brzo_i2c_read_info(uint8_t *data, uint32_t nr_of_bytes, bool repeated_start, brzo_i2c_info *info);
+void brzo_i2c_ACK_polling_info(uint16_t ACK_polling_time_out_usec, brzo_i2c_info *info);
+uint8_t brzo_i2c_end_transaction_info(brzo_i2c_info *info);
 
 #ifdef __cplusplus
 }
