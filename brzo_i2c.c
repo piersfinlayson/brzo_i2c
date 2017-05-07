@@ -46,7 +46,7 @@ extern void ets_isr_unmask(unsigned intr); // missing definition
 #include "brzo_i2c.h"
 
 // Global variables
-brzo_i2c_info i2c_info = {0};
+brzo_i2c_info i2c_info;
 
 void ICACHE_RAM_ATTR brzo_i2c_write_info(uint8_t *data, uint32_t no_of_bytes, bool repeated_start, brzo_i2c_info *info)
 {
